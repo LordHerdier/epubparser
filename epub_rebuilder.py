@@ -138,37 +138,65 @@ def find_chapter_boundaries(content_data):
 
     from bs4.element import Tag  # local import keeps top-level imports untouched
 
+    # We walk through the spine in order, allowing chapters to span multiple
+    # files.  `current_chapter_*` hold the chapter we are presently building.
+
+    current_title: str | None = None
+    current_content: list[str] = []
+
     for item in content_files:
-        with open(item['full_path'], "r", encoding="utf-8") as f:
+        with open(item["full_path"], "r", encoding="utf-8") as f:
             html_content = f.read()
 
         soup = BeautifulSoup(html_content, "html.parser")
         body = soup.body if soup.body else soup  # Fallback if <body> missing
 
-        h1_tags = body.find_all("h1")
+        # Enumerate <h1> tags *in order* within this file.
+        h1_tags = list(body.find_all("h1"))
+
         if not h1_tags:
-            # No chapter heading – skip for now.
+            # No headings in this file; if we're inside a chapter, append the
+            # whole body markup to it and continue.
+            if current_title is not None:
+                current_content.append(body.decode_contents())
             continue
 
-        for h_idx, h1 in enumerate(h1_tags):
-            title = h1.get_text(strip=True)
+        # There are one or more <h1> tags in this file.
+        # We iterate over them, each time finalising the previous chapter (if
+        # any) and starting a new one.
 
-            # Collect this <h1> and everything up until the next <h1>
-            content_fragments = [str(h1)]
+        # Use an iterator over the tag list so we can look at siblings for the
+        # content slice.
+        for idx, h1 in enumerate(h1_tags):
+            # Whenever we encounter a heading, we first finish the *previous*
+            # chapter (if one exists and we have accumulated content).
+            if current_title is not None:
+                chapters.append({
+                    "title": current_title,
+                    "content": "".join(current_content),
+                    "id": f"ch_{len(chapters)}",
+                })
 
+            # Start the new chapter.
+            current_title = h1.get_text(strip=True)
+            current_content = [str(h1)]  # include the heading itself
+
+            # Gather nodes until the next h1 *within this file*.
             for sibling in h1.next_siblings:
-                # Stop when we reach the next <h1> heading
                 if isinstance(sibling, Tag) and sibling.name == "h1":
                     break
-                content_fragments.append(str(sibling))
+                current_content.append(str(sibling))
 
-            chapter_html = "".join(content_fragments)
+        # End for h1 in file – if there were multiple headings we have already
+        # closed all but the last. The last one remains open (current_* vars).
 
-            chapters.append({
-                "title": title,
-                "content": chapter_html,
-                "id": f"ch_{len(chapters)}"
-            })
+    # After processing all content files, flush the final chapter if pending.
+    if current_title is not None:
+        chapters.append({
+            "title": current_title,
+            "content": "".join(current_content),
+            "id": f"ch_{len(chapters)}",
+        })
 
     return chapters
 
