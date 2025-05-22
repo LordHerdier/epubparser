@@ -4,7 +4,7 @@ A Python application that rebuilds EPUBs by properly splitting content based on 
 
 ## Problem
 
-Many EPUBs have their content split into arbitrary parts that don't align with actual chapters. This tool extracts the EPUB contents, identifies chapter boundaries by searching for `<h1>` tags, and rebuilds the EPUB with proper chapter-based splitting.
+Many EPUBs have their content split into arbitrary parts that don't align with actual chapters (like book parts downloaded using JNCEP...). This tool extracts the EPUB contents, identifies chapter boundaries by searching for `<h1>` tags, and rebuilds the EPUB with proper chapter-based splitting.
 
 ## Features
 
